@@ -1,0 +1,10 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: dynfs
+#remove comments to make this default provisioner
+#  annotations:
+#    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: kazhar/dynamic-hostpath
+parameters:
+  pvDir: /dynamic_dirs
