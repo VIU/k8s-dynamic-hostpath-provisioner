@@ -2,7 +2,7 @@ FROM golang:1.8 as build-stage
 
 # build
 WORKDIR /go/src/k8s-dynamic-hostpath-provisioner
-RUN curl https://glide.sh/get | sh
+
 COPY ./glide* ./
 COPY ./vendor ./vendor/
 COPY ./dynamic-hostpath-provisioner.go .
