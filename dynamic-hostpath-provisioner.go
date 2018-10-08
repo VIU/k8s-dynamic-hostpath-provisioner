@@ -110,7 +110,7 @@
 
 	// Check if pvc name already exists
 	pvpath := path.Join(nspath, name)
-	if _, err := os.Stat(pvpath); err == nil {
+/*	if _, err := os.Stat(pvpath); err == nil {
 		// If yes, try to generate a new name
 		for i := 1; i < 100; i++ {
 			 new_name := fmt.Sprintf("%s-%02d", name, i)
@@ -123,7 +123,7 @@
 			 }
 		}
 	}
-
+*/
 	return pvpath, nil
 }
 
@@ -156,6 +156,7 @@
 	 if err != nil {
 		 return nil, err
 	 }	
+	 path := path.Join(path, options.PVName)
 
 	 /* Create the on-disk directory. */
 	 if err := os.MkdirAll(path, 0777); err != nil {
@@ -240,7 +241,13 @@
 	  * Construct the on-disk path based on the pvDir and volume name, then
 	  * delete it.
 	  */
-	 path := path.Join(params.pvDir, volume.Name)
+	  path, err := p.generatePVPath(options)
+	  if err != nil {
+		  return nil, err
+	  }	
+	path := path.Join(path, volume.Name)
+ 
+	// path := path.Join(params.pvDir, volume.Name)
 	 if err := os.RemoveAll(path); err != nil {
 		 glog.Errorf("failed to remove PV %s (%s): %v",
 			 volume.Name, path, err)
