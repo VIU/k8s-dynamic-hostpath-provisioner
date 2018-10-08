@@ -72,7 +72,10 @@
  var _ controller.Provisioner = &hostPathProvisioner{}
  
  /*
- * Generate PV path. Copied from https://github.com/nmasse-itix/OpenShift-HostPath-Provisioner/blob/master/src/hostpath-provisioner/hostpath-provisioner.go
+  Generate PV path. Copied from https://github.com/nmasse-itix/OpenShift-HostPath-Provisioner/blob/master/src/hostpath-provisioner/hostpath-provisioner.go.
+
+  Path is /pvDir/namespace/claim-name
+
  */
  func (p *hostPathProvisioner) generatePVPath(options controller.VolumeOptions) (string, error) {
 
@@ -133,16 +136,17 @@
   * provisioner id, so multiple provisioners can run on the same cluster.
   */
  func (p *hostPathProvisioner) Provision(options controller.VolumeOptions) (*v1.PersistentVolume, error) {
-	 /*
-	  * Fetch the PV root directory from the PV storage class.
-	  */
-	/* params, err := p.parseParameters(options.Parameters)
+/*
+	 * Fetch the PV root directory from the PV storage class.
+	 */
+	 params, err := p.parseParameters(options.Parameters)
 	 if err != nil {
 		 return nil, err
 	 }
- */
+ 
 	 /*
-	  * Extract the PV capacity as bytes. 
+	  * Extract the PV capacity as bytes.  We can use this to set CephFS
+	  * quotas.
 	  */
 	 capacity := options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
 	 volbytes := capacity.Value()
@@ -152,24 +156,13 @@
 		 return nil, fmt.Errorf("storage capacity must be >= 0 (not %+v)", capacity.String())
 	 }
  
-	 path, err := p.generatePVPath(options)
-	 if err != nil {
-		 return nil, err
-	 }	
-	 path := path.Join(path, options.PVName)
-
 	 /* Create the on-disk directory. */
-	 if err := os.MkdirAll(path, 0777); err != nil {
-		glog.Errorf("failed to mkdir %s: %s", path, err)
-		return nil, err
-		}	
-/*
 	 path := path.Join(params.pvDir, options.PVName)
 	 if err := os.MkdirAll(path, 0777); err != nil {
 		 glog.Errorf("failed to mkdir %s: %s", path, err)
 		 return nil, err
 	 }
- */
+ 
 	 /* The actual PV we will create */
 	 pv := &v1.PersistentVolume{
 		 ObjectMeta: metav1.ObjectMeta{
@@ -195,66 +188,60 @@
 	 glog.Infof("successfully created hostpath volume %s (%s)",
 		 options.PVName, path)
  
-	 return pv, nil
- }
+ return pv, nil
+}
  
  /*
   * Delete: remove a PV from the disk by deleting its directory.
   */
  func (p *hostPathProvisioner) Delete(volume *v1.PersistentVolume) error {
-	 /* Ensure this volume was provisioned by us */
-	 ann, ok := volume.Annotations[provisionerIDAnn]
-	 if !ok {
-		 glog.Infof("not removing volume <%s>: identity annotation <%s> missing",
-				volume.Name, provisionerIDAnn)
-		 return errors.New("identity annotation not found on PV")
-	 }
- 
-	 if ann != p.identity {
-		 glog.Infof("not removing volume <%s>: identity annotation <%s> does not match ours <%s>",
-				volume.Name, p.identity, provisionerIDAnn)
-		 return &controller.IgnoredError{Reason: "identity annotation on PV does not match ours"}
-	 }
- 
-	 /*
-	  * Fetch the PV class to get the pvDir.  I don't think there would be
-	  * any security implications from using the hostPath in the volume
-	  * directly, but this feels more correct.
-	  */
-	 class, err := p.client.StorageV1beta1().StorageClasses().Get(
-		 helper.GetPersistentVolumeClass(volume),
-		 metav1.GetOptions{})
-	 if err != nil {
-		 glog.Infof("not removing volume <%s>: failed to fetch storageclass: %s",
-				volume.Name, err)
-		 return err
-	 }
- 
-	 params, err := p.parseParameters(class.Parameters)
-	 if err != nil {
-		 glog.Infof("not removing volume <%s>: failed to parse storageclass parameters: %s",
-				volume.Name, err)
-		 return err
-	 }
- 
-	 /*
-	  * Construct the on-disk path based on the pvDir and volume name, then
-	  * delete it.
-	  */
-	  path, err := p.generatePVPath(options)
-	  if err != nil {
-		  return nil, err
-	  }	
-	path := path.Join(path, volume.Name)
- 
-	// path := path.Join(params.pvDir, volume.Name)
-	 if err := os.RemoveAll(path); err != nil {
-		 glog.Errorf("failed to remove PV %s (%s): %v",
-			 volume.Name, path, err)
-		 return err
-	 }
- 
-	 return nil
+	/* Ensure this volume was provisioned by us */
+	ann, ok := volume.Annotations[provisionerIDAnn]
+	if !ok {
+		glog.Infof("not removing volume <%s>: identity annotation <%s> missing",
+			   volume.Name, provisionerIDAnn)
+		return errors.New("identity annotation not found on PV")
+	}
+
+	if ann != p.identity {
+		glog.Infof("not removing volume <%s>: identity annotation <%s> does not match ours <%s>",
+			   volume.Name, p.identity, provisionerIDAnn)
+		return &controller.IgnoredError{Reason: "identity annotation on PV does not match ours"}
+	}
+
+	/*
+	 * Fetch the PV class to get the pvDir.  I don't think there would be
+	 * any security implications from using the hostPath in the volume
+	 * directly, but this feels more correct.
+	 */
+	class, err := p.client.StorageV1beta1().StorageClasses().Get(
+		helper.GetPersistentVolumeClass(volume),
+		metav1.GetOptions{})
+	if err != nil {
+		glog.Infof("not removing volume <%s>: failed to fetch storageclass: %s",
+			   volume.Name, err)
+		return err
+	}
+
+	params, err := p.parseParameters(class.Parameters)
+	if err != nil {
+		glog.Infof("not removing volume <%s>: failed to parse storageclass parameters: %s",
+			   volume.Name, err)
+		return err
+	}
+
+	/*
+	 * Construct the on-disk path based on the pvDir and volume name, then
+	 * delete it.
+	 */
+	path := path.Join(params.pvDir, volume.Name)
+	if err := os.RemoveAll(path); err != nil {
+		glog.Errorf("failed to remove PV %s (%s): %v",
+			volume.Name, path, err)
+		return err
+	}
+
+	return nil
  }
  
  func (p *hostPathProvisioner) parseParameters(parameters map[string]string) (*hostPathParameters, error) {
