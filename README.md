@@ -5,7 +5,7 @@ Forked from https://github.com/torchbox/k8s-hostpath-provisioner and made change
 - Changed Dockerfile to build provisioner. No need to install Go on local machine.
 - Removed CephFS related code.
 - Renamed provisioner.
-- Added PV naming from from [OpenShift-HostPath-Provisioner](https://github.com/nmasse-itix/OpenShift-HostPath-Provisioner/blob/master/src/hostpath-provisioner/hostpath-provisioner.go).
+- Added PV naming from [OpenShift-HostPath-Provisioner](https://github.com/nmasse-itix/OpenShift-HostPath-Provisioner/blob/master/src/hostpath-provisioner/hostpath-provisioner.go).
 - Added sample yaml-files for deployment, storage class and claim.
 
 
