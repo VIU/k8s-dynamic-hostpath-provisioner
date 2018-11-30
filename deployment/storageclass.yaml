@@ -7,4 +7,6 @@ metadata:
 #    storageclass.kubernetes.io/is-default-class: "true"
 provisioner: kazhar/dynamic-hostpath
 parameters:
-  pvDir: /dynamic_dirs
+  #change to some other directory, for example: /nfs/dynamic_dirs
+  #change directory also in deployment.yaml
+  pvDir: /

@@ -1,14 +1,18 @@
-FROM golang:1.8 as build-stage 
+FROM golang:1.11.2 as build-stage 
+
+# install dep
+RUN curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 
 # build
 WORKDIR /go/src/k8s-dynamic-hostpath-provisioner
+#use cached file to get dependencies, useful when this is in local Docker cache
+COPY cache/dynamic-hostpath-provisioner.go .
+COPY ./Makefile .
+RUN	make dep
 
-#COPY ./glide* ./
-COPY ./vendor ./vendor/
-COPY ./dynamic-hostpath-provisioner.go .
-
-#build code
-RUN CGO_ENABLED=0 go build -a -ldflags '-extldflags "-static"' -o dynamic-hostpath-provisioner .
+#copy and build actual code
+COPY dynamic-hostpath-provisioner.go .
+RUN make dynamic-hostpath-provisioner
 
 #CMD ["/bin/bash"]
 
