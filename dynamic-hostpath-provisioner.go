@@ -14,6 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+/*
+
+Original code: https://github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/tree/master/examples/hostpath-provisioner
+and included code from https://github.com/torchbox/k8s-hostpath-provisioner/blob/master/hostpath-provisioner.go
+
+*/
+
 package main
 
 import (
