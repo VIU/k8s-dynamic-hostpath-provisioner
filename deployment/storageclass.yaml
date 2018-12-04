@@ -5,8 +5,8 @@ metadata:
 #remove comments to make this default provisioner
 #  annotations:
 #    storageclass.kubernetes.io/is-default-class: "true"
-provisioner: kazhar/dynamic-hostpath
+provisioner: kazhar/dynamic-hostpath-provisioner
 parameters:
   #change to some other directory, for example: /nfs/dynamic_dirs
-  #change directory also in deployment.yaml
-  pvDir: /
+  #change this directory also in deployment.yaml
+  pvDir: /dynfs
