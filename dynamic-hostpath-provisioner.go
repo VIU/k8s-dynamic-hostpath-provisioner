@@ -31,7 +31,6 @@ import (
 	"syscall"
 	"fmt"
 
-	"github.com/golang/glog"
 	"github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/controller"
 
 	"k8s.io/api/core/v1"
@@ -95,7 +94,7 @@ func (p *hostPathProvisioner) Provision(options controller.VolumeOptions) (*v1.P
 	 /* Create the on-disk directory. */
 	 path := path.Join(params.pvDir, options.PVName)
 	 if err := os.MkdirAll(path, 0777); err != nil {
-		 glog.Errorf("failed to mkdir %s: %s", path, err)
+		 fmt.Printf("ERROR: failed to mkdir %s: %s", path, err)
 		 return nil, err
 	 }
 
@@ -120,7 +119,7 @@ func (p *hostPathProvisioner) Provision(options controller.VolumeOptions) (*v1.P
 		},
 	}
 
-	glog.Infof("successfully created hostpath volume %s (%s)", options.PVName, path)
+	fmt.Printf("successfully created hostpath volume %s (%s)", options.PVName, path)
 
 	return pv, nil
 }
@@ -144,13 +143,13 @@ func (p *hostPathProvisioner) Delete(volume *v1.PersistentVolume) error {
 	class, err := p.client.StorageV1beta1().StorageClasses().Get(v1helper.GetPersistentVolumeClass(volume),
 		metav1.GetOptions{})
 	if err != nil {
-		glog.Infof("not removing volume <%s>: failed to fetch storageclass: %s",
+		fmt.Printf("not removing volume <%s>: failed to fetch storageclass: %s",
 			   volume.Name, err)
 		return err
 	}
 	params, err := p.parseParameters(class.Parameters)
 	if err != nil {
-		glog.Infof("not removing volume <%s>: failed to parse storageclass parameters: %s",
+		fmt.Printf("not removing volume <%s>: failed to parse storageclass parameters: %s",
 			   volume.Name, err)
 		return err
 	}
@@ -161,7 +160,7 @@ func (p *hostPathProvisioner) Delete(volume *v1.PersistentVolume) error {
 	 */
 	 path := path.Join(params.pvDir, volume.Name)
 	 if err := os.RemoveAll(path); err != nil {
-		 glog.Errorf("failed to remove PV %s (%s): %v",
+		fmt.Printf("ERROR: failed to remove PV %s (%s): %v",
 			 volume.Name, path, err)
 		 return err
 	 }
@@ -203,18 +202,18 @@ func main() {
 	// to use to communicate with Kubernetes
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		glog.Fatalf("Failed to create config: %v", err)
+		fmt.Printf("ERROR: failed to create config: %v", err)
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		glog.Fatalf("Failed to create client: %v", err)
+		fmt.Printf("ERROR: to create client: %v", err)
 	}
 
 	// The controller needs to know what the server version is because out-of-tree
 	// provisioners aren't officially supported until 1.5
 	serverVersion, err := clientset.Discovery().ServerVersion()
 	if err != nil {
-		glog.Fatalf("Error getting server version: %v", err)
+		fmt.Printf("ERROR: error getting server version: %v", err)
 	}
    
 	// Create the provisioner: it implements the Provisioner interface expected by
