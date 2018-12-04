@@ -2,6 +2,9 @@
 # Create required Kubernetes stuff.
 #
 # Original file provided by Torchbox Ltd.
+#
+# Modified to use PodSecurityPolicy 
+
 
 apiVersion: v1
 kind: ServiceAccount
@@ -25,28 +28,51 @@ roleRef:
   name: system:persistent-volume-provisioner
 
 ---
+#security policy to allow privileged pods
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: dynamic-hostpath-provisioner-pod-security-policy
+spec:
+  privileged: true  # Allow privileged pods
+  # The rest fills in some required fields.
+  seLinux:
+    rule: RunAsAny
+  supplementalGroups:
+    rule: RunAsAny
+  runAsUser:
+    rule: RunAsAny
+  fsGroup:
+    rule: RunAsAny
+  volumes:
+  - '*'
 
-# The default system:persistent-volume-provisioner role in Kubernetes 1.8 is
-# insufficient:
-#
-# I1007 18:09:10.073558       1 controller.go:874] cannot start watcher for PVC default/testpvc: events is forbidden: User "system:serviceaccount:kube-system:dynamic-hostpath-provisioner" cannot list events in the namespace "default": access denied
+---
 
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: dynamic-hostpath-provisioner-extra
 rules:
-- apiGroups:
-  - ""
-  resources:
-  - events
-  verbs:
-  - create
-  - patch
-  - update
-  - list
-  - get
-  - watch
+- apiGroups: [""]
+  resources: ["persistentvolumes"]
+  verbs: ["get", "list", "watch", "create", "delete"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["storage.k8s.io"]
+  resources: ["storageclasses"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["create", "update", "patch"]
+- apiGroups: [""]
+  resources: ["endpoints"]
+  verbs: ["get", "list", "watch", "create", "update", "patch"]
+- apiGroups: ["extensions"]
+  resources: ["podsecuritypolicies"]
+  resourceNames: ["dynamic-hostpath-provisioner-pod-security-policy"]
+  verbs: ["use"]
 
 ---
 
@@ -81,17 +107,18 @@ spec:
     metadata:
       labels:
         app: dynamic-hostpath-provisioner
-
     spec:
       serviceAccountName: dynamic-hostpath-provisioner
       containers:
       - name: dynamic-hostpath-provisioner
         image: kazhar/k8s-dynamic-hostpath-provisioner:develop
+        securityContext:
+          privileged: true
         volumeMounts:
         - name: volumes
-          #change to some other directory, for example: /nfs/dynamic_dirs
+          #change to your own directory
           #change directory also in storageclass.yaml
-          mountPath: /
+          mountPath: /dynfs
         resources:
           limits:
             cpu: 100m
@@ -99,11 +126,9 @@ spec:
           requests:
             cpu: 100m
             memory: 64Mi
-      securityContext:
-        privileged: true
       volumes:
       - name: volumes
         hostPath:
-          #change to some other directory, for example: /nfs/dynamic_dirs
+          #change to your own directory
           #change directory also in storageclass.yaml
-          path: /
+          path: /dynfs
