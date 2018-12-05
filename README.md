@@ -6,6 +6,8 @@ Forked from https://github.com/torchbox/k8s-hostpath-provisioner and made change
 - Copied new provisioner code from https://github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/tree/master/examples/hostpath-provisioner and made changes based on the torchbox code. 
 - Removed vendor-dir.
 - Added sample yaml-files for deployment, storage class and claim.
+- Added additional stuff.
+
 
 
 # Original README
