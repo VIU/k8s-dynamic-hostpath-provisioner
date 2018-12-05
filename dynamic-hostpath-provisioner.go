@@ -60,8 +60,7 @@ type hostPathProvisioner struct {
 
  /* Storage the parsed configuration from the storage class */
  type hostPathParameters struct {
-	pvDir       string /* On-disk path of the PV root */
-	enableTrace       bool /* Set to true to enable trace entries */
+	pvDir           string /* On-disk path of the PV root */
 }
 
 /*
@@ -126,8 +125,12 @@ func (p *hostPathProvisioner) Provision(options controller.VolumeOptions) (*v1.P
 		return nil, err
 	}
 
-	Trace.Println("Provisioning directory")
+	Trace.Println("Provisioning directory...")
 	Trace.Println("Options:",options)
+
+	Trace.Println("PVName:",options.PVName)
+	Trace.Println("PersistentVolumeReclaimPolicy when provisioning:",options.PersistentVolumeReclaimPolicy)
+	Trace.Println("AccessModes:",options.PVC.Spec.AccessModes)
 
 	 /* Create the on-disk directory. */
 	 //TODO: check how to generate PVPath
@@ -138,6 +141,7 @@ func (p *hostPathProvisioner) Provision(options controller.VolumeOptions) (*v1.P
 		 Error.Println(fmt.Sprintf("failed to mkdir %s: %s", path, err))
 		 return nil, err
 	 }
+
 
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
@@ -167,7 +171,11 @@ func (p *hostPathProvisioner) Provision(options controller.VolumeOptions) (*v1.P
 
 // Delete removes the storage asset that was created by Provision represented
 // by the given PV.
+// Does not delete if ReclaimPolicy is set to "Retain" in StorageClass configuration.
 func (p *hostPathProvisioner) Delete(volume *v1.PersistentVolume) error {
+
+	Trace.Println("Deleting directory...")
+
 	ann, ok := volume.Annotations[provisionerIDAnn]
 	if !ok {
 		return errors.New("identity annotation not found on PV")
@@ -188,12 +196,13 @@ func (p *hostPathProvisioner) Delete(volume *v1.PersistentVolume) error {
 		Error.Println(fmt.Sprintf("not removing volume <%s>: failed to fetch storageclass: %s",volume.Name, err))
 		return err
 	}
+
 	params, err := p.parseParameters(class.Parameters)
 	if err != nil {
 		Error.Println(fmt.Sprintf("not removing volume <%s>: failed to parse storageclass parameters: %s",volume.Name, err))
 		return err
 	}
-
+	
 	/*
 	 * Construct the on-disk path based on the pvDir and volume name, then
 	 * delete it.
