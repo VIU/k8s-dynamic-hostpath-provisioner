@@ -8,6 +8,13 @@ Forked from https://github.com/torchbox/k8s-hostpath-provisioner and made change
 - Added sample yaml-files for deployment, storage class and claim.
 - Added additional stuff.
 
+## Usage
+
+Uses privileged
+
+- deployment.yaml
+- storageclass.yaml
+
 
 
 # Original README
