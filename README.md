@@ -1,21 +1,54 @@
 # Kubernetes dynamic hostpath provisioner
 
-Forked from https://github.com/torchbox/k8s-hostpath-provisioner and made changes:
+This is a Persistent Volume Claim (PVC) provisioner for Kubernetes. It dynamically provisions hostPath volumes to provide storage for PVCs. Please see [Original README](#original-readme) for more information.
 
-- Changed Dockerfile to build provisioner. No need to install Go on local machine.
-- Copied new provisioner code from https://github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/tree/master/examples/hostpath-provisioner and made changes based on the torchbox code. 
-- Removed vendor-dir.
-- Added sample yaml-files for deployment, storage class and claim.
-- Added additional stuff.
+## Test environment
+
+- IBM Cloud Private 3.1 (uses Kubernetes 1.11.1) with three worker nodes.
+- Each worker node has shared NFS directory.
+- [deployment.yaml](deployment/deployment.yaml) used to deploy provisioner to ICP.
+- [storageclass.yaml](deployment/storageclass.yaml) used to create StorageClass for dynamic provisioning.
 
 ## Usage
 
-Uses privileged
+- Deploy provisioner:
+  - Change volume paths to your environment. Default is: ```/dynfs```.
+  - ```kubectl create -f deployment/deployment.yaml```
+- Create storage class:
+  - Change name other parameters to your own. Default storage class name is ```dynfs```. 
+  - Make sure that *pvDir* is the same as volume paths in deployment.yaml.
+  - ```kubectl create -f deployment/storageclass.yaml```
+- Test:
+  - Create PVC: ```kubectl create -f deployment/testclaim.yaml```
+  - Verify that directory was created.
+  - Delete PVC: ```kubectl delete -f deployment/testclaim.yaml```
+  - Verify that directory was deleted (only if claim policy was Delete).
 
-- deployment.yaml
-- storageclass.yaml
+## Something to keep in mind
 
+- Set up NFS or some other network/shared storage prior to deploying this provisioner.
+  - Configure the mounted directory, or directory undert the mounted directory, in [deployment.yaml](deployment/deployment.yaml) and [storageclass.yaml](deployment/storageclass.yaml).
+- Provisioner uses privileged container.
+  - [deployment.yaml](deployment/deployment.yaml) creates PodSecurityPolicy to allow it.
+- Paths of dynamically created directories:
+  - ```/pvdir/namespace/claim-name```
+  - *pvdir*, directory given in StorageClass configuration and it must be mounted in provisioner (see both [deployment.yaml](deployment/deployment.yaml) and [storageclass.yaml](deployment/storageclass.yaml)).
+  - *namespace* where PVC will be created. Default is *default* (which is ICP default namespace).
+  - *claim-name* is the claim-name given when pod is deployed. If *claim-name* exists, a number is appended.
+- Directories that are created have 777 permissions.
+- If the mounted directory is deleted while the provisioner is deployed, provisioning may not work.
+- Default PersistentVolumeReclaimPolicy is Delete. When claim is deleted so is the provisioned directory.
+  - This can be changed in StorageClass configuration.
 
+## Changes from the original
+
+- Changed Dockerfile to build provisioner. No need to install Go on local machine.
+- Removed vendor-dir.
+- Copied new provisioner code from https://github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/tree/master/examples/hostpath-provisioner and made changes based on the torchbox code. 
+- Added sample yaml-files for deployment, storage class and claim.
+- PV dir name generated as in https://github.com/nmasse-itix/OpenShift-HostPath-Provisioner/blob/master/src/hostpath-provisioner/hostpath-provisioner.go.
+- Logging changes as in  https://www.ardanlabs.com/blog/2013/11/using-log-package-in-go.html.
+- And some other changes.
 
 # Original README
 
@@ -130,75 +163,4 @@ parameters:
 
 ### Start the provisioner
 
-#### Out-of-cluster
-
-For out-of-cluster use, just provide a kubeconfig file when starting:
-
-```
-# ./hostpath-provisioner -kubeconfig ~/.kube/config
-```
-
-In most cases the provisioner will need to run as root, but you can run it as a
-non-privileged user as long as it has access to create and delete PVs.  (For
-example, by giving it the `CAP_DAC_OVERRIDE` capability; using an ACL is not
-sufficient because a user could remove the ACL and prevent PVs from being
-deleted.)
-
-### In-cluster
-
-Use the sample `deployment.yaml` to deploy the provisioner.  You must edit the
-`volumes` volume to point to the location of the network storage; in nearly all
-cases, this should be the same as the `pvDir` in the storage class.
-
-The sample deployment includes RBAC configuration, and creates a new service
-account called `hostpath-provisioner`.  If your cluster restricts access to
-`hostPath` volumes using Pod Security Policies, you must ensure this
-serviceaccount can use hostPath.  (This is not required for consumers of the
-created PVs, only the provisioner itself.)
-
-### Create a PVC
-
-Test the provisioner by creating a new PVC:
-
-```
-$ cat testpvc.yaml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: testpvc
-spec:
-  accessModes:
-  - ReadWriteMany
-  resources:
-    requests:
-      storage: 50Gi
-$ kubectl create -f testpvc.yaml
-persistentvolumeclaim "testpvc" created
-```
-
-The provisioner should detect the new PVC and provision a PV.  The PVC will then become Bound:
-
-```
-$ kubectl get pvc
-NAME      STATUS    VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
-testpvc   Bound     pvc-145c785e-ab83-11e7-9432-4201ac1fd019   50Gi       RWX            cephfs         10s
-```
-
-You can now use the PVC in a pod.
-
-CephFS quota support
---------------------
-
-The provisioner can set
-[CephFS quotas](http://docs.ceph.com/docs/master/cephfs/quota/) on the PVs it
-creates.  CephFS quotas are enforced by the client and can be overridden by the
-user (by editing the extended attributes of the PV), so the quota is an
-informative limit rather than a security feature.
-
-To set CephFS quotas on PVs, add `cephFSQuota: true` to the storage class
-parameters.
-
-This requires that the Ceph client has the MDS 'p' capability on the filesystem
-(see [CephFS client capabilities](http://docs.ceph.com/docs/master/cephfs/client-auth/)),
-which also means the user of the PV will have access to modify these
-attributes.
+Please see the rest in [the original repository](https://github.com/torchbox/k8s-hostpath-provisioner/tree/fe8dcfde450cfbb505cb7f2044c404bc5b86bbc8).
