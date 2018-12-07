@@ -111,7 +111,7 @@ spec:
       serviceAccountName: dynamic-hostpath-provisioner
       containers:
       - name: dynamic-hostpath-provisioner
-        image: kazhar/k8s-dynamic-hostpath-provisioner:develop
+        image: kazhar/k8s-dynamic-hostpath-provisioner:0.1
         securityContext:
           privileged: true
         volumeMounts:
