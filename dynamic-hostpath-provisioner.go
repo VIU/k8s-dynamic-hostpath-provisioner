@@ -113,11 +113,62 @@ func NewHostPathProvisioner(client kubernetes.Interface) controller.Provisioner 
 
 var _ controller.Provisioner = &hostPathProvisioner{}
 
+//generate PVPath. Function copied from
+//https://github.com/nmasse-itix/OpenShift-HostPath-Provisioner/blob/master/src/hostpath-provisioner/hostpath-provisioner.go
+func (p *hostPathProvisioner) generatePVPath(pvDir string, options controller.VolumeOptions) (string, error) {
+	
+	// default values
+	namespace := "default"
+	name := options.PVName
+
+	if pvc := options.PVC; pvc != nil {
+		// Get PVC namespace if it exists
+		ns := pvc.Namespace
+		if ns != "" {
+			namespace = ns
+		}
+
+		// Get PVC name if it exists
+		n := pvc.Name
+		if n != "" {
+			name = n
+		}
+	}	
+
+	// Try to create namespace dir if it does not exist
+	nspath := path.Join(pvDir, namespace)
+	if _, err := os.Stat(nspath); os.IsNotExist(err) {
+		if err := os.MkdirAll(nspath, 0777); err != nil {
+			return "", err
+		}
+	}
+
+	// Check if pvc name already exists
+	pvpath := path.Join(nspath, name)
+	if _, err := os.Stat(pvpath); err == nil {
+		// If yes, try to generate a new name
+		for i := 1; i < 1000; i++ {
+			new_name := fmt.Sprintf("%s-%03d", name, i)
+			new_pvpath := path.Join(nspath, new_name)
+			if _, err := os.Stat(new_pvpath); os.IsNotExist(err) {
+				// Found a free name
+				name = new_name
+				pvpath = new_pvpath
+				return pvpath, nil
+			}
+		}
+	}
+
+	return pvpath, nil
+
+}
+
+
 // Provision creates a storage asset and returns a PV object representing it.
 func (p *hostPathProvisioner) Provision(options controller.VolumeOptions) (*v1.PersistentVolume, error) {
 
 	/*
-	* Fetch the PV root directory from the PV storage class.
+	* Read params to fetch the PV root directory from the PV storage class.
 	*/
 	params, err := p.parseParameters(options.Parameters)
 	if err != nil {
@@ -131,16 +182,16 @@ func (p *hostPathProvisioner) Provision(options controller.VolumeOptions) (*v1.P
 	Trace.Println("PersistentVolumeReclaimPolicy when provisioning:",options.PersistentVolumeReclaimPolicy)
 	Trace.Println("AccessModes:",options.PVC.Spec.AccessModes)
 
-	 /* Create the on-disk directory. */
-	 //TODO: check how to generate PVPath
-	 //https://github.com/nmasse-itix/OpenShift-HostPath-Provisioner/blob/master/src/hostpath-provisioner/hostpath-provisioner.go
-	 path := path.Join(params.pvDir, options.PVName)
-	 if err := os.MkdirAll(path, 0777); err != nil {
-		 //fmt.Printf("ERROR: failed to mkdir %s: %s", path, err)
-		 Error.Println(fmt.Sprintf("failed to mkdir %s: %s", path, err))
-		 return nil, err
-	 }
+	/* Create the on-disk directory. */
+	path, err := p.generatePVPath(params.pvDir, options)
+	if err != nil {
+		return nil, err
+ 	}
 
+	if err := os.MkdirAll(path, 0777); err != nil {
+		Error.Println(fmt.Sprintf("failed to mkdir %s: %s", path, err))
+		return nil, err
+	}
 
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
@@ -168,9 +219,8 @@ func (p *hostPathProvisioner) Provision(options controller.VolumeOptions) (*v1.P
 	return pv, nil
 }
 
-// Delete removes the storage asset that was created by Provision represented
-// by the given PV.
-// Does not delete if ReclaimPolicy is set to "Retain" in StorageClass configuration.
+// Delete removes the storage asset that was created by Provision represented by the given PV.
+// Does not delete if ReclaimPolicy is set to "Retain" (or actually any other than "Delete") in StorageClass configuration.
 func (p *hostPathProvisioner) Delete(volume *v1.PersistentVolume) error {
 
 	Trace.Println("Deleting directory...")
@@ -201,10 +251,11 @@ func (p *hostPathProvisioner) Delete(volume *v1.PersistentVolume) error {
 		return &controller.IgnoredError{Reason: "PersistentVolumeReclaimPolicy was not Delete. No action taken."}
 	}
 
-	 if err := os.RemoveAll(path); err != nil {
+	//remove directory
+	if err := os.RemoveAll(path); err != nil {
 		Error.Println(fmt.Sprintf("Remove dir (%s) failed:  %s",volume.Name, err))
 		return err
-	 }
+	}
  
 	return nil
 }
