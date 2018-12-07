@@ -40,7 +40,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 )
 
 const (
@@ -176,6 +175,7 @@ func (p *hostPathProvisioner) Delete(volume *v1.PersistentVolume) error {
 
 	Trace.Println("Deleting directory...")
 
+	//check that this volume was provisioned by this provisioner
 	ann, ok := volume.Annotations[provisionerIDAnn]
 	if !ok {
 		return errors.New("identity annotation not found on PV")
@@ -184,32 +184,25 @@ func (p *hostPathProvisioner) Delete(volume *v1.PersistentVolume) error {
 		return &controller.IgnoredError{Reason: "identity annotation on PV does not match ours"}
 	}
 
-	/*
-	 * Fetch the PV class to get the pvDir.  I don't think there would be
-	 * any security implications from using the hostPath in the volume
-	 * directly, but this feels more correct.
-	 */	 
-	class, err := p.client.StorageV1beta1().StorageClasses().Get(v1helper.GetPersistentVolumeClass(volume),
-		metav1.GetOptions{})
-	if err != nil {
-		//fmt.Printf("not removing volume <%s>: failed to fetch storageclass: %s",volume.Name, err)
-		Error.Println(fmt.Sprintf("not removing volume <%s>: failed to fetch storageclass: %s",volume.Name, err))
-		return err
+	Trace.Println("Volume: ",volume)
+	Trace.Println("hostpathSource: ",volume.Spec.HostPath)
+
+	//get host pathPV volume spec
+	path := volume.Spec.HostPath.Path
+
+	Trace.Println("path: ",path)	
+	
+	//get reclaim policy of this volume
+	volumeClaimPolicy := volume.Spec.PersistentVolumeReclaimPolicy
+	Trace.Println("volumeClaimPolicy: ",volumeClaimPolicy)
+	
+	if volumeClaimPolicy != "Delete" {
+		Error.Println("Will not delete directory. PersistentVolumeReclaimPolicy is not Delete. It is: ", volumeClaimPolicy)
+		return &controller.IgnoredError{Reason: "PersistentVolumeReclaimPolicy was not Delete. No action taken."}
 	}
 
-	params, err := p.parseParameters(class.Parameters)
-	if err != nil {
-		Error.Println(fmt.Sprintf("not removing volume <%s>: failed to parse storageclass parameters: %s",volume.Name, err))
-		return err
-	}
-	
-	/*
-	 * Construct the on-disk path based on the pvDir and volume name, then
-	 * delete it.
-	 */
-	 path := path.Join(params.pvDir, volume.Name)
 	 if err := os.RemoveAll(path); err != nil {
-		Error.Println(fmt.Sprintf("not removing volume <%s>: failed to parse storageclass parameters: %s",volume.Name, err))
+		Error.Println(fmt.Sprintf("Remove dir (%s) failed:  %s",volume.Name, err))
 		return err
 	 }
  
