@@ -14,13 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-/*
-
-Original code: https://github.com/kubernetes-sigs/sig-storage-lib-external-provisioner/tree/master/examples/hostpath-provisioner
-and included code from https://github.com/torchbox/k8s-hostpath-provisioner/blob/master/hostpath-provisioner.go
-
-*/
-
 package main
 
 import (
@@ -113,7 +106,8 @@ func NewHostPathProvisioner(client kubernetes.Interface) controller.Provisioner 
 
 var _ controller.Provisioner = &hostPathProvisioner{}
 
-//generate PVPath. Function copied from
+//Generates PVPath. Format: /pvdir/namespace/claim-name
+//Function copied from
 //https://github.com/nmasse-itix/OpenShift-HostPath-Provisioner/blob/master/src/hostpath-provisioner/hostpath-provisioner.go
 func (p *hostPathProvisioner) generatePVPath(pvDir string, options controller.VolumeOptions) (string, error) {
 	
@@ -162,7 +156,6 @@ func (p *hostPathProvisioner) generatePVPath(pvDir string, options controller.Vo
 	return pvpath, nil
 
 }
-
 
 // Provision creates a storage asset and returns a PV object representing it.
 func (p *hostPathProvisioner) Provision(options controller.VolumeOptions) (*v1.PersistentVolume, error) {
@@ -283,7 +276,6 @@ func (p *hostPathProvisioner) parseParameters(parameters map[string]string) (*ho
 	}
 
 	Trace.Println("storageclass parameters: ",parameters)
-
 
 	if params.pvDir == "" {
 		return nil, fmt.Errorf("missing PV directory (pvDir)")
