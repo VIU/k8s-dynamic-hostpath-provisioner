@@ -11,11 +11,14 @@ This is a Persistent Volume Claim (PVC) provisioner for Kubernetes. It dynamical
 
 ## Usage
 
+- Set up NFS or some other network/shared storage to all worker nodes prior to deploying this provisioner.
+  - Remember to configure the mounted directory in [deployment.yaml](deployment/deployment.yaml) and [storageclass.yaml](deployment/storageclass.yaml).
 - Deploy provisioner:
   - Change volume paths to your environment. Default is: ```/dynfs```.
   - ```kubectl create -f deployment/deployment.yaml```
 - Create storage class:
-  - Change name other parameters to your own. Default storage class name is ```dynfs```. 
+  - Change name and other parameters to your own. Default storage class name is ```dynfs```.
+  - If you want this to be default storage class, set the annotation to *true*.
   - Make sure that *pvDir* is the same as volume paths in deployment.yaml.
   - ```kubectl create -f deployment/storageclass.yaml```
 - Test:
@@ -23,11 +26,10 @@ This is a Persistent Volume Claim (PVC) provisioner for Kubernetes. It dynamical
   - Verify that directory was created.
   - Delete PVC: ```kubectl delete -f deployment/testclaim.yaml```
   - Verify that directory was deleted (only if claim policy was Delete).
+- When deploying workloads, use the storage class name when dynamically provisioning.
 
 ## Something to keep in mind
 
-- Set up NFS or some other network/shared storage prior to deploying this provisioner.
-  - Configure the mounted directory, or directory undert the mounted directory, in [deployment.yaml](deployment/deployment.yaml) and [storageclass.yaml](deployment/storageclass.yaml).
 - Provisioner uses privileged container.
   - [deployment.yaml](deployment/deployment.yaml) creates PodSecurityPolicy to allow it.
 - Paths of dynamically created directories:
